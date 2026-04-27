@@ -74,13 +74,13 @@ Every ticket carries exactly one domain label:
 
 ## Agent Reference
 
-| Agent | Model | Mode | Steps | Can Edit | Bash |
-|-------|-------|------|-------|----------|------|
-| archdruid | gemini-3-pro-preview | primary | 30 | no | — |
-| seer | claude-opus-4-6 | subagent (hidden) | 30 | no | `bd *` only |
-| beastmaster | claude-haiku-4-5 | subagent | 50 | no | `bd ready/list/show/update` only |
-| critter | glm-5.1 | subagent | 40 | yes | git, bd show/close/dolt, npm/pytest/make test, ls |
-| thread | glm-4.7-flashx | subagent | 15 | no | git, grep, find, ls |
+| Agent | Model | Mode | Steps | Can Edit | Bash | Task |
+|-------|-------|------|-------|----------|------|------|
+| archdruid | gemini-3-pro-preview | primary | 30 | no | — | all subagents |
+| seer | claude-opus-4-6 | subagent (hidden) | 30 | no | `bd *` only | — |
+| beastmaster | claude-haiku-4-5 | subagent | 50 | no | `bd ready/list/show/update` only | critter |
+| critter | glm-5.1 | subagent | 40 | yes | git, bd show/close/dolt, npm/pytest/make test, ls | thread |
+| thread | glm-4.7-flashx | subagent | 15 | no | git, grep, find, ls | — |
 | spindle | glm-5.1 | subagent | 15 | no | none |
 | weft | glm-5.1 | subagent | — | no | none |
 | warp | glm-5.1 | subagent | — | no | none |
@@ -92,8 +92,10 @@ Weft, Warp, and Security-Audit are not yet finished. Their prompts and permissio
 ## Making Changes
 
 When editing `src/plugin.ts`:
-- All agent configs are in the `config` callback. Each is a block under `config.agent["name"]`.
+- All agent configs are in the `config` callback. Each is a block under `a["name"]` (v2-typed alias for `config.agent`).
+- The `a` alias is typed as `Record<string, V2AgentConfig>` from `@opencode-ai/sdk/v2`. This gives full v2 type safety (steps, hidden, task permissions) despite the plugin SDK passing v1 `Config`.
 - Permission objects use glob patterns for bash commands. `"*": "deny"` is the default-deny base.
+- The `task` permission controls which subagents an agent can spawn via the Task tool. Without it, the agent hangs waiting for manual approval.
 - The `steps` field caps agentic iterations. Set it on every finished agent.
 - The `hidden: true` flag on seer keeps it out of the @ autocomplete menu.
 - Run `npm run typecheck` after any edit to verify.

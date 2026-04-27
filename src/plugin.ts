@@ -1,4 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import type { AgentConfig as V2AgentConfig } from "@opencode-ai/sdk/v2"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rampart Plugin
@@ -33,16 +34,29 @@ export const RampartPlugin: Plugin = async (_ctx) => {
     config: async (config) => {
 
       config.agent = config.agent ?? {}
+      const a = config.agent as { [key: string]: V2AgentConfig }
 
       // ── Archdruid ─────────────────────────────────────────────────────────
       // Primary orchestrator. The user's main interface.
       // Routes work to Seer (planning) then Beastmaster (execution).
-      config.agent["archdruid"] = {
+      a["archdruid"] = {
         model: "google/gemini-3-pro-preview",
         description: "Archdruid — root orchestrator and router for the Beads Swarm workflow",
         mode: "primary",
         temperature: 0.1,
         steps: 30,
+        permission: {
+          task: {
+            seer: "allow",
+            beastmaster: "allow",
+            warp: "allow",
+            "security-audit": "allow",
+            thread: "allow",
+            spindle: "allow",
+            weft: "allow",
+            "docs-writer": "allow",
+          },
+        },
         prompt: `<Role>
 Archdruid — root orchestrator for the Beads Swarm workflow.
 You are the user's primary interface. You understand intent and route work to the right agents.
@@ -102,7 +116,7 @@ When beastmaster reports a blocker, decide the correct response:
       // ── Seer ──────────────────────────────────────────────────────────────
       // Technical Product Manager. Takes a high-level goal and creates granular
       // bd tickets with dependencies. Runs on Opus for maximum planning quality.
-      config.agent["seer"] = {
+      a["seer"] = {
         model: "anthropic/claude-opus-4-6",
         description: "Seer — technical PM that breaks down requests into granular bd issues",
         mode: "subagent",
@@ -169,13 +183,16 @@ The coding agents work best with small, isolated context.
       // ── Beastmaster ───────────────────────────────────────────────────────
       // Sprint dispatcher. Polls the beads ready queue and spawns 1-2
       // Critter agents in parallel. Pauses and surfaces blockers to Archdruid.
-      config.agent["beastmaster"] = {
+      a["beastmaster"] = {
         model: "anthropic/claude-haiku-4-5",
         description: "Beastmaster — sprint dispatcher that works the bd ready queue via parallel critter agents",
         mode: "subagent",
         temperature: 0.0,
         steps: 50,
         permission: {
+          task: {
+            critter: "allow",
+          },
           bash: {
             "*": "deny",
             "bd ready*": "allow",
@@ -256,13 +273,16 @@ The subagent runs in its own session — you wait for it to complete before send
       // ── Critter ───────────────────────────────────────────────────────────
       // Ticket implementer. Receives a single bd issue ID, implements it,
       // runs tests, closes the ticket, and reports back to Beastmaster.
-      config.agent["critter"] = {
+      a["critter"] = {
         model: "zai-coding-plan/glm-5.1",
         description: "Critter — ticket implementer that reads a bd issue, writes code, tests, and closes it",
         mode: "subagent",
         temperature: 0.2,
         steps: 40,
         permission: {
+          task: {
+            thread: "allow",
+          },
           bash: {
             "*": "deny",
             "bd show*": "allow",
@@ -338,7 +358,7 @@ Keep your context small. Do ONE ticket. Do it completely.
 
       // ── Thread ────────────────────────────────────────────────────────────
       // Fast, cheap, read-only codebase explorer.
-      config.agent["thread"] = {
+      a["thread"] = {
         model: "zai-coding-plan/glm-4.7-flashx",
         description: "Thread — fast read-only codebase explorer for searches and architecture mapping",
         mode: "subagent",
@@ -358,7 +378,7 @@ Answer questions about structure, patterns, and existing code quickly and precis
 
       // ── Spindle ───────────────────────────────────────────────────────────
       // External researcher. Web fetching and documentation lookup.
-      config.agent["spindle"] = {
+      a["spindle"] = {
         model: "zai-coding-plan/glm-5.1",
         description: "Spindle — external researcher for docs, APIs, and web content",
         mode: "subagent",
@@ -377,7 +397,7 @@ You never modify files. Return concise, relevant summaries with sources.
 
       // ── Weft ──────────────────────────────────────────────────────────────
       // Code quality reviewer. Read-only.
-      config.agent["weft"] = {
+      a["weft"] = {
         model: "zai-coding-plan/glm-5.1",
         description: "Weft — code quality reviewer, checks standards and best practices",
         mode: "subagent",
@@ -396,7 +416,7 @@ You never modify files. Produce a clear APPROVE or NEEDS_CHANGES verdict with sp
 
       // ── Warp ──────────────────────────────────────────────────────────────
       // Security auditor. Read-only.
-      config.agent["warp"] = {
+      a["warp"] = {
         model: "zai-coding-plan/glm-5.1",
         description: "Warp — security auditor for code changes and sensitive operations",
         mode: "subagent",
@@ -422,7 +442,7 @@ Produce a clear APPROVE or REJECT verdict with specific findings.
 
       // ── Security Audit ────────────────────────────────────────────────────
       // Independent second-model security reviewer for cross-model coverage.
-      config.agent["security-audit"] = {
+      a["security-audit"] = {
         model: "opencode/minimax-m2.5-free",
         description: "SecurityAudit — independent second-model security reviewer for cross-model coverage",
         mode: "subagent",
@@ -442,7 +462,7 @@ Produce a clear APPROVE or REJECT verdict. Be concise but specific.
 
       // ── Docs Writer ───────────────────────────────────────────────────────
       // Technical documentation specialist.
-      config.agent["docs-writer"] = {
+      a["docs-writer"] = {
         model: "zai-coding-plan/glm-5.1",
         description: "Docs Writer — technical documentation specialist for READMEs, API docs, guides, and changelogs",
         mode: "subagent",
