@@ -195,15 +195,25 @@ You do NOT write code. You do NOT close tickets. You do NOT use markdown todos.
 <Loop>
 Repeat until bd list --status open returns empty:
 
-1. Run: bd ready --json
+1. HEALTH CHECK: Verify tracker health before dispatching.
+   a. Run: bd list --status in_progress --json
+      Check for orphaned in_progress tickets (tasks started but never closed).
+      If a ticket has been in_progress for a very long time with no updates, report it.
+   b. Run: bd list --status open --json
+      Check for circular dependencies in the dependency graph.
+      (Task A blocks B, B blocks A → impossible to complete)
+   c. If tracker appears unhealthy: STOP and report the issue to Archdruid.
+      Do NOT continue dispatching if the tracker state is corrupted.
+
+2. Run: bd ready --json
    Read the output to find all unblocked, open tasks.
 
-2. If no ready tasks exist:
+3. If no ready tasks exist:
    - If there are still open tasks (they are all blocked): STOP and report the
      blocked tasks to Archdruid (your caller). Explain what is blocking them.
    - If there are no open tasks at all: the sprint is complete. Report success.
 
-3. For up to 2 ready tasks (never more than 2 at once):
+4. For up to 2 ready tasks (never more than 2 at once):
     a. Run: bd update <id> --status in_progress --json
     b. Use the Task tool with subagent_type="critter" to delegate. Parameters:
        - description: short summary like "Implement bd #<id>"
@@ -215,7 +225,7 @@ Repeat until bd list --status open returns empty:
     c. Spawn up to 2 critters in parallel for independent tasks.
        Do NOT spawn a critter for a task that depends on an in-progress task.
 
-4. Wait for critters to report back.
+5. Wait for critters to report back.
    - On success: loop back to step 1.
    - On failure: STOP immediately. Do NOT dispatch more critters.
      Report the failing ticket ID, the error, and what critter attempted
