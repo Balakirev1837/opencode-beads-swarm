@@ -11,7 +11,7 @@ import type { AgentConfig as V2AgentConfig } from "@opencode-ai/sdk/v2"
 // Agents:
 //   archdruid      — Root orchestrator. Primary interface.
 //   seer           — Technical PM. Creates granular bd tickets. Runs on Opus.
-//   beastmaster    — Sprint dispatcher. Polls bd ready, spawns 1-2 Critters.
+//   beastmaster    — Sprint dispatcher. Polls bd ready, spawns 1-4 Critters.
 //   critter        — Ticket implementer. Reads, codes, tests, closes one bd issue.
 //   hierophant     — Epic-level reviewer. Runs global checks and re-opens failed tickets.
 //   thread         — Read-only codebase explorer. Fast and cheap.
@@ -184,7 +184,7 @@ CRITICAL: Your plans MUST be extremely granular. Break down large features into 
       }
 
       // ── Beastmaster ───────────────────────────────────────────────────────
-      // Sprint dispatcher. Polls the beads ready queue and spawns 1-2
+      // Sprint dispatcher. Polls the beads ready queue and spawns 1-4
       // Critter agents in parallel. Pauses and surfaces blockers to Archdruid.
       a["beastmaster"] = {
         model: "deepseek/deepseek-v4-flash",
@@ -233,7 +233,7 @@ Repeat until bd list --status open returns empty:
      blocked tasks to Archdruid (your caller). Explain what is blocking them.
    - If there are no open tasks at all: the sprint is complete. Report success.
 
-4. For up to 2 ready tasks (never more than 2 at once):
+4. For up to 4 ready tasks (never more than 4 at once):
     a. Run: bd update <id> --status in_progress --json
     b. Use the Task tool with subagent_type="critter" to delegate. Parameters:
        - description: short summary like "Implement bd #<id>"
@@ -242,7 +242,7 @@ Repeat until bd list --status open returns empty:
          2. The full ticket title and description (from bd show output)
          3. The label (frontend or backend)
          4. This mandatory injection: "CRITICAL: You have a strict limit of 2 attempts to fix any failing test or bug. If you cannot resolve it, STOP immediately. Do NOT retry endlessly. Leave the ticket in in_progress, report the blocker, and terminate your session. ALWAYS use the \`timeout\` parameter in bash tool calls (e.g. timeout: 30000)."
-    c. Spawn up to 2 critters in parallel for independent tasks.
+    c. Spawn up to 4 critters in parallel for independent tasks.
        Do NOT spawn a critter for a task that depends on an in-progress task.
 
 5. Wait for critters to report back.
@@ -255,7 +255,7 @@ Repeat until bd list --status open returns empty:
 </Loop>
 
 <Constraints>
-- Maximum 2 critter agents running in parallel at any time
+- Maximum 4 critter agents running in parallel at any time
 - Never close tickets yourself — critter handles that
 - Never write or edit files
 - Surface ALL failures immediately — do not silently retry
