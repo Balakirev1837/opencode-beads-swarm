@@ -21,7 +21,10 @@ README.md        ← Project overview for the owner
 ```
 Archdruid (primary) → Seer (plan) → Beastmaster (dispatch) → Critter (implement)
      ▲                                       │
+     │                                       │
      └──────────── blocker report ◄───────────┘
+     │
+     └──────────── Hierophant (review)
 ```
 
 Critters report to Beastmaster. Beastmaster reports to Archdruid. Archdruid routes to Seer (replan) or user (clarify). **No agent bypasses its caller.**
@@ -77,8 +80,9 @@ Every ticket carries exactly one domain label:
 | Agent | Model | Mode | Steps | Can Edit | Bash | Task |
 |-------|-------|------|-------|----------|------|------|
 | archdruid | gemini-3-pro-preview | primary | 30 | no | — | all subagents |
-| seer | openrouter/claude-opus-4-6 | subagent (hidden) | 30 | no | `bd *` only | — |
-| beastmaster | openrouter/claude-haiku-4-5 | subagent | 50 | no | `bd ready/list/show/update` only | critter |
+| seer | moonshotai/kimi-k2.6 | subagent (hidden) | 30 | no | `bd *` only | — |
+| beastmaster | deepseek/deepseek-v4-flash | subagent | 50 | no | `bd ready/list/show/update` only | critter |
+| hierophant | anthropic/claude-3.5-sonnet | subagent | 20 | no | `npm/make/pytest`, `bd show/update/list`, `git` | — |
 | critter | glm-5.1 | subagent | 40 | yes | git, bd show/close/dolt, npm/pytest/make test, ls | thread |
 | thread | glm-4.7-flashx | subagent | 15 | no | git, grep, find, ls | — |
 | spindle | glm-5.1 | subagent | 15 | no | none |

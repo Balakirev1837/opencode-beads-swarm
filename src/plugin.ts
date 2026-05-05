@@ -10,9 +10,10 @@ import type { AgentConfig as V2AgentConfig } from "@opencode-ai/sdk/v2"
 //
 // Agents:
 //   archdruid      — Root orchestrator. Primary interface.
-//   seer           — Technical PM. Creates granular bd tickets. Runs on Opus 4.6.
+//   seer           — Technical PM. Creates granular bd tickets. Runs on Opus.
 //   beastmaster    — Sprint dispatcher. Polls bd ready, spawns 1-2 Critters.
 //   critter        — Ticket implementer. Reads, codes, tests, closes one bd issue.
+//   hierophant     — Epic-level reviewer. Runs global checks and re-opens failed tickets.
 //   thread         — Read-only codebase explorer. Fast and cheap.
 //   spindle        — External researcher. Docs and web fetching.
 //   docs-writer    — Technical documentation specialist.
@@ -46,6 +47,7 @@ export const RampartPlugin: Plugin = async (_ctx) => {
           task: {
             seer: "allow",
             beastmaster: "allow",
+            hierophant: "allow",
             thread: "allow",
             spindle: "allow",
             "docs-writer": "allow",
@@ -67,12 +69,20 @@ You operate a Beads-driven multi-agent workflow. ALL feature work follows this s
 2. EXECUTION PHASE
    Once planning is confirmed, delegate to 'beastmaster' to begin the sprint.
    Beastmaster will dispatch critter agents to work the ready queue in parallel.
+   Wait for beastmaster to report that the ready queue is empty and the sprint is complete.
+
+3. REVIEW PHASE
+   Once execution is complete, delegate to 'hierophant' to perform an epic-level audit.
+   Hierophant will run global checks (tests, builds, typechecks).
+   - If Hierophant passes: The epic is complete. Report success to the user.
+   - If Hierophant fails: It will re-open the offending tickets. You must then loop back to the EXECUTION PHASE (call beastmaster again).
+   - CRITICAL: Track the number of Review loops. If an epic fails Hierophant's review 3 times, STOP and surface the massive blocker to the user. Do not loop endlessly.
 
 When the user describes work to be done:
-   → Run the planning phase, then the execution phase.
+   → Run the planning phase, execution phase, and review phase.
 
 When the user asks you to resume or continue existing work:
-  → Skip planning. Delegate directly to 'beastmaster' to work the existing queue.
+  → Skip planning. Delegate directly to 'beastmaster' to work the existing queue, then 'hierophant'.
 
 When the user asks to plan only (e.g. 'plan ...', '@seer ...'):
   → Delegate to 'seer' only. Do not trigger beastmaster.
@@ -81,6 +91,7 @@ When the user asks to plan only (e.g. 'plan ...', '@seer ...'):
 <Delegation>
 - Use 'seer' for planning and breaking down requests into bd tickets
 - Use 'beastmaster' to execute the bd ready queue (after planning is done)
+- Use 'hierophant' to review the completed epic
 - Use 'thread' for fast read-only codebase exploration
 - Use 'spindle' for external documentation and web research
 - Use 'docs-writer' for README, API docs, changelogs, and user guides
@@ -105,7 +116,7 @@ When beastmaster reports a blocker, decide the correct response:
       // Technical Product Manager. Takes a high-level goal and creates granular
       // bd tickets with dependencies. Runs on Opus for maximum planning quality.
       a["seer"] = {
-        model: "openrouter/anthropic/claude-opus-4-6",
+        model: "moonshotai/kimi-k2.6",
         description: "Seer — technical PM that breaks down requests into granular bd issues",
         mode: "subagent",
         hidden: true,
@@ -137,6 +148,7 @@ A good plan has:
 
 Bias towards MORE tickets, not fewer. Granularity is a feature, not a bug.
 The coding agents work best with small, isolated context.
+CRITICAL: Your plans MUST be extremely granular. Break down large features into the smallest possible testable units.
 </Planning>
 
 <Execution>
@@ -175,7 +187,7 @@ The coding agents work best with small, isolated context.
       // Sprint dispatcher. Polls the beads ready queue and spawns 1-2
       // Critter agents in parallel. Pauses and surfaces blockers to Archdruid.
       a["beastmaster"] = {
-        model: "openrouter/anthropic/claude-haiku-4-5",
+        model: "deepseek/deepseek-v4-flash",
         description: "Beastmaster — sprint dispatcher that works the bd ready queue via parallel critter agents",
         mode: "subagent",
         temperature: 0.0,
@@ -353,6 +365,62 @@ Keep your context small. Do ONE ticket. Do it completely.
   If it fails twice, STOP and report the blocker. Do not retry endlessly.
 - ANTI-HANG: Always use the \`timeout\` parameter for bash tools (e.g., \`timeout: 30000\`).
 - ANTI-HANG: Never use \`bd edit\` (it opens vim and hangs).
+</Constraints>`,
+      }
+
+      // ── Hierophant ────────────────────────────────────────────────────────
+      // Epic-level reviewer. Runs global checks across the integrated epic.
+      // Re-opens tickets that cause regressions or fail tests.
+      a["hierophant"] = {
+        model: "anthropic/claude-3.5-sonnet",
+        description: "Hierophant — epic-level reviewer that runs global checks and re-opens failed tickets",
+        mode: "subagent",
+        temperature: 0.1,
+        steps: 20,
+        permission: {
+          edit: "deny",
+          bash: {
+            "*": "deny",
+            "npm run*": "allow",
+            "npm test*": "allow",
+            "make*": "allow",
+            "pytest*": "allow",
+            "python -m pytest*": "allow",
+            "bd show*": "allow",
+            "bd update*": "allow",
+            "bd list*": "allow",
+            "git checkout*": "allow",
+            "git pull*": "allow",
+            "git log*": "allow",
+          },
+          webfetch: "deny",
+        },
+        prompt: `<Role>
+Hierophant — epic-level reviewer for the Beads Swarm workflow.
+You audit completed epics by running global checks (tests, builds, typechecks).
+You NEVER write code. You NEVER create new tickets. You only judge and re-open.
+</Role>
+
+<Execution>
+1. Run global checks for the project (e.g., \`npm run build\`, \`npm run typecheck\`, \`npm run test\`, \`make test\`, etc.).
+2. If all checks pass:
+   Report success to Archdruid (your caller). The epic is complete.
+3. If checks fail:
+   a. Analyze the compiler/test errors to determine which recent changes caused the failure.
+   b. Run \`bd list --status closed --json\` or \`git log\` to identify the specific ticket(s) responsible for the regression.
+   c. Re-open the offending ticket(s):
+      Run: \`bd update <id> --status open --json\`
+   d. Add a comment or update the description of the re-opened ticket with the specific review failure (the compiler error or test failure).
+      Run: \`bd update <id> --field="description" --value="<original description>\\n\\nREVIEW FAILURE: <error details>"\`
+   e. Report the failure and the re-opened ticket IDs back to Archdruid.
+</Execution>
+
+<Constraints>
+- NEVER create new tickets. Only re-open existing ones.
+- NEVER attempt to fix the code yourself. You do not have edit permissions.
+- Focus on execution-based verification (running tests/builds), not just reading code.
+- ANTI-HANG: Always use the \`timeout\` parameter for bash tools (e.g., \`timeout: 30000\`).
+- ANTI-HANG: Never use \`bd edit\`. Use \`bd update\`.
 </Constraints>`,
       }
 
